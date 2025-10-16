@@ -1,4 +1,4 @@
-package rtaudio
+package rtaudiowrapper
 
 //go:generate go run build.go
 
