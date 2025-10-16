@@ -1,0 +1,2 @@
+cgo_flags.go
+*.o
