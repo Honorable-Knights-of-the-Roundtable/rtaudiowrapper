@@ -46,6 +46,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -160,6 +161,21 @@ type DeviceInfo struct {
 
 	PreferredSampleRate uint
 	SampleRates         []int
+}
+
+func (device *DeviceInfo) ToString() string {
+	var sb strings.Builder
+
+	fmt.Fprintf(&sb, "ID:                  %d\n", device.ID)
+	fmt.Fprintf(&sb, "Name:                %s\n", device.Name)
+	fmt.Fprintf(&sb, "NumOutputChannels:   %d\n", device.NumOutputChannels)
+	fmt.Fprintf(&sb, "NumInputChannels:    %d\n", device.NumInputChannels)
+	fmt.Fprintf(&sb, "NumDuplexChannels:   %d\n", device.NumDuplexChannels)
+	fmt.Fprintf(&sb, "IsDefaultOutput:     %t\n", device.IsDefaultOutput)
+	fmt.Fprintf(&sb, "IsDefaultInput:      %t\n", device.IsDefaultInput)
+	fmt.Fprintf(&sb, "PreferredSampleRate: %u\n", device.PreferredSampleRate)
+	fmt.Fprintf(&sb, "SampleRates:         %v\n", device.SampleRates)
+	return sb.String()
 }
 
 type StreamFlags C.rtaudio_stream_flags_t
