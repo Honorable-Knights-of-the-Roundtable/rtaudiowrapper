@@ -163,7 +163,7 @@ type DeviceInfo struct {
 	SampleRates         []int
 }
 
-func (device *DeviceInfo) ToString() string {
+func (device *DeviceInfo) String() string {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "ID:                  %d\n", device.ID)
@@ -173,7 +173,7 @@ func (device *DeviceInfo) ToString() string {
 	fmt.Fprintf(&sb, "NumDuplexChannels:   %d\n", device.NumDuplexChannels)
 	fmt.Fprintf(&sb, "IsDefaultOutput:     %t\n", device.IsDefaultOutput)
 	fmt.Fprintf(&sb, "IsDefaultInput:      %t\n", device.IsDefaultInput)
-	fmt.Fprintf(&sb, "PreferredSampleRate: %u\n", device.PreferredSampleRate)
+	fmt.Fprintf(&sb, "PreferredSampleRate: %d\n", device.PreferredSampleRate)
 	fmt.Fprintf(&sb, "SampleRates:         %v\n", device.SampleRates)
 	return sb.String()
 }
