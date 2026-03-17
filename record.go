@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func Record(outpath string) {
+func Record(outpath string) (RtAudio, *RecordingData) {
 	audio, err := Create(APIUnspecified)
 	if err != nil {
 		log.Fatal(err)
@@ -86,28 +86,30 @@ func Record(outpath string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer audio.Close()
 
 	fmt.Printf("Starting recording for %d seconds...\n", recordTime)
 
 	err = audio.Start()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Audio failed to start\n",err)
 	}
+	return audio, data
 
-	// Wait for recording to complete
-	for audio.IsRunning() {
-		time.Sleep(100 * time.Millisecond)
-		fmt.Printf("\rFrames recorded: %d / %d", data.frameCounter, data.totalFrames)
-	}
-
-	fmt.Printf("\n\nRecording complete. Recorded %d frames.\n", data.frameCounter)
-
-	// Write WAV file
-	fmt.Printf("Writing WAV file: %s\n", outpath)
-	if err := writeWavFile(outpath, data, uint32(sampleRate), 16); err != nil {
-		fmt.Printf("Error writing WAV file: %v\n", err)
-		return
-	}
-	fmt.Printf("Successfully wrote %s\n", outpath)
+	// // Wait for recording to complete
+	// for audio.IsRunning() {
+	// 	time.Sleep(100 * time.Millisecond)
+	// 	fmt.Printf("\rFrames recorded: %d / %d", data.frameCounter, data.totalFrames)
+	// }
+	//
+	// fmt.Printf("\n\nRecording complete. Recorded %d frames.\n", data.frameCounter)
+	//
+	// // Write WAV file
+	// fmt.Printf("Writing WAV file: %s\n", outpath)
+	// if err := writeWavFile(outpath, data, uint32(sampleRate), 16); err != nil {
+	// 	fmt.Printf("Error writing WAV file: %v\n", err)
+	// 	return
+	// }
+	// fmt.Printf("Successfully wrote %s\n", outpath)
 }
+
+
