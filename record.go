@@ -37,10 +37,10 @@ func Record(outpath string) (RtAudio, *RecordingData) {
 
 	// Initialize recording data
 	data := &RecordingData{
-		buffer:       make([]int16, totalFrames*channels),
-		totalFrames:  totalFrames,
-		frameCounter: 0,
-		channels:     channels,
+		Buffer:       make([]int16, totalFrames*channels),
+		TotalFrames:  totalFrames,
+		FrameCounter: 0,
+		Channels:     channels,
 	}
 
 	params := StreamParams{
@@ -65,18 +65,18 @@ func Record(outpath string) (RtAudio, *RecordingData) {
 
 		// Calculate how many frames to copy
 		frames := nFrames
-		if data.frameCounter+nFrames > data.totalFrames {
-			frames = data.totalFrames - data.frameCounter
+		if data.FrameCounter+nFrames > data.TotalFrames {
+			frames = data.TotalFrames - data.FrameCounter
 		}
 
 		// Copy data to our buffer
-		offset := data.frameCounter * data.channels
-		samplesToCopy := frames * data.channels
-		copy(data.buffer[offset:offset+samplesToCopy], inputData[:samplesToCopy])
-		data.frameCounter += frames
+		offset := data.FrameCounter * data.Channels
+		samplesToCopy := frames * data.Channels
+		copy(data.Buffer[offset:offset+samplesToCopy], inputData[:samplesToCopy])
+		data.FrameCounter += frames
 
 		// Return 2 to stop the stream when done
-		if data.frameCounter >= data.totalFrames {
+		if data.FrameCounter >= data.TotalFrames {
 			return 2
 		}
 		return 0

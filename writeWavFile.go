@@ -13,10 +13,10 @@ func WriteWavFile(filename string, data *RecordingData, sampleRate uint32, bitsP
 	}
 	defer file.Close()
 
-	channels := uint32(data.channels)
+	channels := uint32(data.Channels)
 
 	// Calculate sizes based on actual frames recorded
-	dataSize := uint32(data.frameCounter) * channels * (bitsPerSample / 8)
+	dataSize := uint32(data.FrameCounter) * channels * (bitsPerSample / 8)
 
 	// Write RIFF header
 	file.Write([]byte("RIFF"))
@@ -38,9 +38,9 @@ func WriteWavFile(filename string, data *RecordingData, sampleRate uint32, bitsP
 	binary.Write(file, binary.LittleEndian, uint32(dataSize)) // Subchunk2Size
 
 	// Write audio data from Go slice
-	totalSamples := data.frameCounter * data.channels
+	totalSamples := data.FrameCounter * data.Channels
 	for i := 0; i < totalSamples; i++ {
-		if err := binary.Write(file, binary.LittleEndian, data.buffer[i]); err != nil {
+		if err := binary.Write(file, binary.LittleEndian, data.Buffer[i]); err != nil {
 			return fmt.Errorf("failed to write sample: %w", err)
 		}
 	}

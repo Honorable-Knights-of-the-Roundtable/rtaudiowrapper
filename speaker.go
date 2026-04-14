@@ -2,7 +2,9 @@ package rtaudiowrapper
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 )
@@ -86,7 +88,7 @@ func Speaker(wavFilePath string) error {
 		// Read binary data from file
 		err := binary.Read(data.file, binary.LittleEndian, buffer)
 		if err != nil {
-			if err == os.ErrClosed || err.Error() == "EOF" {
+			if errors.Is(err, os.ErrClosed) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				// End of file - fill with silence and stop
 				for i := range outputData {
 					outputData[i] = 0
