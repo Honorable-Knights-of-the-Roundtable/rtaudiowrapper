@@ -7,7 +7,7 @@ package rtaudiowrapper
 #cgo CFLAGS: -g
 #cgo windows CXXFLAGS: -D__WINDOWS_WASAPI__
 #cgo windows CFLAGS: -D__WINDOWS_WASAPI__
-#cgo windows LDFLAGS: ${SRCDIR}/rtaudio_go.o -lstdc++ -lm -lole32 -lwinmm -lksuser -lmfplat -lmfuuid -lwmcodecdspuuid -static-libstdc++ -static-libgcc -g
+#cgo windows LDFLAGS: ${SRCDIR}/rtaudio_go.o -Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -lm -lole32 -lwinmm -lksuser -lmfplat -lmfuuid -lwmcodecdspuuid -g
 #include "lib/rtaudio_c.h"
 #include <stdint.h>
 #include <stdlib.h>
