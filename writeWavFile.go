@@ -1,10 +1,11 @@
 package rtaudiowrapper
 
 import (
-	"os"
 	"encoding/binary"
 	"fmt"
+	"os"
 )
+
 // writeWavFile writes audio data to a WAV file
 func WriteWavFile(filename string, data *RecordingData, sampleRate uint32, bitsPerSample uint32) error {
 	file, err := os.Create(filename)

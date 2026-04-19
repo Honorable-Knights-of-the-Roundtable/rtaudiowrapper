@@ -91,7 +91,7 @@ func Record(outpath string) (RtAudio, *RecordingData) {
 
 	err = audio.Start()
 	if err != nil {
-		log.Fatal("Audio failed to start\n",err)
+		log.Fatal("Audio failed to start\n", err)
 	}
 	return audio, data
 
@@ -111,5 +111,3 @@ func Record(outpath string) (RtAudio, *RecordingData) {
 	// }
 	// fmt.Printf("Successfully wrote %s\n", outpath)
 }
-
-
