@@ -9,6 +9,7 @@
 #pragma once
 #ifdef __UNIX_JACK__
 
+#include <cstdio>
 #include <dlfcn.h>
 #include <jack/jack.h>
 
@@ -35,7 +36,7 @@ static int          (*_jack_set_xrun_callback)(jack_client_t*, JackXRunCallback,
 static void         (*_jack_on_shutdown)(jack_client_t*, JackShutdownCallback, void*)         = nullptr;
 static int          (*_jack_set_client_registration_callback)(jack_client_t*, JackClientRegistrationCallback, void*) = nullptr;
 static void         (*_jack_set_error_function)(void (*)(const char*))                        = nullptr;
-static void         (*_jack_get_latency_range)(jack_port_t*, jack_latency_callback_mode_t, jack_latency_range_t*) = nullptr;
+static void         (*_jack_port_get_latency_range)(jack_port_t*, jack_latency_callback_mode_t, jack_latency_range_t*) = nullptr;
 static jack_nframes_t (*_jack_port_get_latency)(jack_port_t*)                                  = nullptr;  // deprecated
 
 // ─── Redirect all call sites through the pointers ─────────────────────────────
@@ -58,27 +59,32 @@ static jack_nframes_t (*_jack_port_get_latency)(jack_port_t*)                   
 #define jack_on_shutdown                      _jack_on_shutdown
 #define jack_set_client_registration_callback _jack_set_client_registration_callback
 #define jack_set_error_function               _jack_set_error_function
-#define jack_get_latency_range                _jack_get_latency_range
+#define jack_port_get_latency_range           _jack_port_get_latency_range
 #define jack_port_get_latency                 _jack_port_get_latency
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
 static void* _jack_lib_handle = nullptr;
 
-// Returns true if JACK is available at runtime. Safe to call multiple times.
-static bool rtaudio_jack_load() {
-  if (_jack_lib_handle) return true;
+// PipeWire ships its own libjack at a non-standard path. On systems where both
+// jackd2 and pipewire-jack are installed, dlopen("libjack.so.0") finds jackd2
+// first but its server isn't running. We detect that by doing a test connection
+// after loading symbols — if it fails we try PipeWire's path instead.
+static const char* _jack_candidate_paths[] = {
+  "libjack.so.0",
+  "libjack.so",
+  "/usr/lib/x86_64-linux-gnu/pipewire-0.3/jack/libjack.so.0",
+  "/usr/lib/aarch64-linux-gnu/pipewire-0.3/jack/libjack.so.0",
+  "/usr/lib/pipewire-0.3/jack/libjack.so.0",
+  nullptr
+};
 
-  _jack_lib_handle = dlopen("libjack.so.0", RTLD_LAZY | RTLD_LOCAL);
-  if (!_jack_lib_handle)
-    _jack_lib_handle = dlopen("libjack.so", RTLD_LAZY | RTLD_LOCAL);
-  if (!_jack_lib_handle)
-    return false;
-
-// Load a required symbol; bail if missing.
+// Attempt to load all required symbols from handle into the _* pointers.
+// Returns false and clears handle on any missing symbol.
+static bool _jack_load_syms(void* handle) {
 #define _JACK_SYM(name) \
-  _##name = (decltype(_##name))dlsym(_jack_lib_handle, #name); \
-  if (!_##name) { dlclose(_jack_lib_handle); _jack_lib_handle = nullptr; return false; }
+  _##name = (decltype(_##name))dlsym(handle, #name); \
+  if (!_##name) { fprintf(stderr, "[jack_loader]   missing symbol: " #name "\n"); return false; }
 
   _JACK_SYM(jack_client_open)
   _JACK_SYM(jack_client_close)
@@ -98,13 +104,56 @@ static bool rtaudio_jack_load() {
   _JACK_SYM(jack_on_shutdown)
   _JACK_SYM(jack_set_client_registration_callback)
   _JACK_SYM(jack_set_error_function)
-  _JACK_SYM(jack_get_latency_range)
+  _JACK_SYM(jack_port_get_latency_range)
 #undef _JACK_SYM
-
-  // Deprecated in newer JACK versions — tolerate its absence
-  _jack_port_get_latency = (decltype(_jack_port_get_latency))dlsym(_jack_lib_handle, "jack_port_get_latency");
-
+  // Deprecated in newer JACK — tolerate its absence
+  _jack_port_get_latency = (decltype(_jack_port_get_latency))dlsym(handle, "jack_port_get_latency");
   return true;
+}
+
+// Returns true if JACK is available at runtime. Safe to call multiple times.
+static bool rtaudio_jack_load() {
+  if (_jack_lib_handle) return true;
+
+  fprintf(stderr, "[jack_loader] rtaudio_jack_load() called\n");
+
+  for (int i = 0; _jack_candidate_paths[i]; ++i) {
+    fprintf(stderr, "[jack_loader] trying: %s\n", _jack_candidate_paths[i]);
+    void* handle = dlopen(_jack_candidate_paths[i], RTLD_LAZY | RTLD_LOCAL);
+    if (!handle) {
+      fprintf(stderr, "[jack_loader]   dlopen failed: %s\n", dlerror());
+      continue;
+    }
+    fprintf(stderr, "[jack_loader]   dlopen OK\n");
+
+    if (!_jack_load_syms(handle)) {
+      fprintf(stderr, "[jack_loader]   symbol load failed\n");
+      dlclose(handle);
+      continue;
+    }
+    fprintf(stderr, "[jack_loader]   symbols OK, probing server\n");
+
+    // Verify a server is actually reachable before committing to this library.
+    // Use JackNoStartServer so we don't accidentally launch a daemon.
+    jack_status_t status;
+    jack_client_t* probe = _jack_client_open("rtaudio_probe",
+                                              (jack_options_t)0x01 /*JackNoStartServer*/,
+                                              &status);
+    if (!probe) {
+      fprintf(stderr, "[jack_loader]   probe failed (status=0x%x), trying next\n", (unsigned)status);
+      // This library loaded fine but has no live server — try the next candidate.
+      dlclose(handle);
+      continue;
+    }
+    fprintf(stderr, "[jack_loader]   probe OK — using this library\n");
+    _jack_client_close(probe);
+
+    _jack_lib_handle = handle;
+    return true;
+  }
+
+  fprintf(stderr, "[jack_loader] no working JACK library found\n");
+  return false;
 }
 
 #endif  // __UNIX_JACK__
