@@ -43,8 +43,7 @@ func build() error {
 func buildWindows() error {
 	fmt.Println("Building for Windows with WASAPI...")
 
-	// Generate CGO flags file for Windows (empty since flags are in record.go)
-	if err := writeCGOFlags(audioBackend{name: "WASAPI", libs: []string{}}); err != nil {
+	if err := writeCGOFlags([]audioBackend{{name: "WASAPI", libs: []string{}}}); err != nil {
 		return fmt.Errorf("failed to write CGO flags: %w", err)
 	}
 
@@ -71,7 +70,6 @@ func buildWindows() error {
 func buildLinux() error {
 	fmt.Println("Detecting available audio backends...")
 
-	// Check which backends are available
 	var available []audioBackend
 	for _, backend := range linuxBackends {
 		if hasBackend(backend.pkgConfig) {
@@ -84,29 +82,33 @@ func buildLinux() error {
 		return handleNoBackend()
 	}
 
-	// Use the first available backend
-	selected := available[0]
-	fmt.Printf("\nUsing %s for audio backend\n", selected.name)
+	// Compile with all available backends — RtAudio selects the best one at runtime
+	names := make([]string, len(available))
+	for i, b := range available {
+		names[i] = b.name
+	}
+	fmt.Printf("\nCompiling with backends: %s (RtAudio will select best at runtime)\n", strings.Join(names, ", "))
 
-	// Generate CGO flags file with backend-specific linking
-	if err := writeCGOFlags(selected); err != nil {
+	if err := writeCGOFlags(available); err != nil {
 		return fmt.Errorf("failed to write CGO flags: %w", err)
 	}
 
-	return buildLinuxWithBackend(selected.define, selected.libs)
+	return buildLinuxWithBackends(available)
 }
 
-func buildLinuxWithBackend(define string, libs []string) error {
+func buildLinuxWithBackends(backends []audioBackend) error {
 	args := []string{
 		"-c",
 		"-o", output,
 		cppFile,
-		fmt.Sprintf("-D%s", define),
 		"-lpthread",
 		"-lm",
 		"-lstdc++",
 	}
-	args = append(args, libs...)
+	for _, b := range backends {
+		args = append(args, fmt.Sprintf("-D%s", b.define))
+		args = append(args, b.libs...)
+	}
 
 	return runCommand("g++", args...)
 }
@@ -257,13 +259,15 @@ func runCommand(name string, args ...string) error {
 	return cmd.Run()
 }
 
-func writeCGOFlags(backend audioBackend) error {
-	// For Linux backends, ensure library order:
-	// 	object files first, then C++ stdlib, then backend-specific libs
+func writeCGOFlags(backends []audioBackend) error {
+	var allLibs []string
+	for _, b := range backends {
+		allLibs = append(allLibs, b.libs...)
+	}
+
 	var ldflags string
-	if len(backend.libs) > 0 {
-		// Append backend libs after the common libs
-		ldflags = fmt.Sprintf("${SRCDIR}/rtaudio_go.o -lstdc++ -lm %s -g", strings.Join(backend.libs, " "))
+	if len(allLibs) > 0 {
+		ldflags = fmt.Sprintf("${SRCDIR}/rtaudio_go.o -lstdc++ -lm %s -g", strings.Join(allLibs, " "))
 	} else {
 		ldflags = "${SRCDIR}/rtaudio_go.o -lstdc++ -lm -g"
 	}
@@ -278,7 +282,6 @@ package rtaudiowrapper
 import "C"
 `, ldflags)
 
-	// Write to the same directory as the build script
 	if err := os.WriteFile("cgo_flags.go", []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write cgo_flags.go: %w", err)
 	}
