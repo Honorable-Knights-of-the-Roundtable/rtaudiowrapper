@@ -20,13 +20,14 @@ type audioBackend struct {
 	name      string
 	pkgConfig string
 	define    string
-	libs      []string
+	libs      []string // link-time libraries (only for hard-linked backends)
+	dlopen    bool     // if true: compile in but load at runtime via dlopen, don't hard-link
 }
 
 var linuxBackends = []audioBackend{
-	{"JACK", "jack", "__UNIX_JACK__", []string{"-ljack"}},
-	{"PulseAudio", "libpulse", "__LINUX_PULSE__", []string{"-lpulse", "-lpulse-simple"}},
-	{"ALSA", "alsa", "__LINUX_ALSA__", []string{"-lasound"}},
+	{"JACK", "jack", "__UNIX_JACK__", []string{}, true},
+	{"PulseAudio", "libpulse", "__LINUX_PULSE__", []string{}, true},
+	{"ALSA", "alsa", "__LINUX_ALSA__", []string{"-lasound"}, false},
 }
 
 func build() error {
@@ -107,7 +108,15 @@ func buildLinuxWithBackends(backends []audioBackend) error {
 	}
 	for _, b := range backends {
 		args = append(args, fmt.Sprintf("-D%s", b.define))
-		args = append(args, b.libs...)
+		if b.dlopen {
+			// Need the headers at compile time but NOT the link-time library.
+			// Get only the -I include paths from pkg-config.
+			if cflags := pkgConfigCflags(b.pkgConfig); cflags != "" {
+				args = append(args, strings.Fields(cflags)...)
+			}
+		} else {
+			args = append(args, b.libs...)
+		}
 	}
 
 	return runCommand("g++", args...)
@@ -116,6 +125,15 @@ func buildLinuxWithBackends(backends []audioBackend) error {
 func hasBackend(pkgName string) bool {
 	cmd := exec.Command("pkg-config", "--exists", pkgName)
 	return cmd.Run() == nil
+}
+
+// pkgConfigCflags returns only the -I include flags for a package (no -l libs).
+func pkgConfigCflags(pkgName string) string {
+	out, err := exec.Command("pkg-config", "--cflags-only-I", pkgName).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func handleNoBackend() error {
@@ -260,14 +278,24 @@ func runCommand(name string, args ...string) error {
 }
 
 func writeCGOFlags(backends []audioBackend) error {
-	var allLibs []string
+	// Only hard-link libraries for non-dlopen backends.
+	// dlopen backends are loaded at runtime, so -ldl is sufficient.
+	var hardLibs []string
+	hasDlopen := false
 	for _, b := range backends {
-		allLibs = append(allLibs, b.libs...)
+		if b.dlopen {
+			hasDlopen = true
+		} else {
+			hardLibs = append(hardLibs, b.libs...)
+		}
+	}
+	if hasDlopen {
+		hardLibs = append(hardLibs, "-ldl")
 	}
 
 	var ldflags string
-	if len(allLibs) > 0 {
-		ldflags = fmt.Sprintf("${SRCDIR}/rtaudio_go.o -lstdc++ -lm %s -g", strings.Join(allLibs, " "))
+	if len(hardLibs) > 0 {
+		ldflags = fmt.Sprintf("${SRCDIR}/rtaudio_go.o -lstdc++ -lm %s -g", strings.Join(hardLibs, " "))
 	} else {
 		ldflags = "${SRCDIR}/rtaudio_go.o -lstdc++ -lm -g"
 	}

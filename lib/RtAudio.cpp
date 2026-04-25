@@ -2600,6 +2600,8 @@ void RtApiJack :: probeDevices( void )
 {
   // See list of required functionality in RtApi::probeDevices().
 
+  if (!rtaudio_jack_load()) return;  // JACK library not available at runtime
+
   // See if we can become a jack client.
   jack_options_t options = (jack_options_t) ( JackNoStartServer ); //JackNullOption;
   jack_status_t *status = NULL;
@@ -9317,7 +9319,9 @@ RtApiPulse::~RtApiPulse()
 void RtApiPulse :: probeDevices( void )
 {
   // See list of required functionality in RtApi::probeDevices().
-  
+
+  if (!rtaudio_pulse_load()) return;  // PulseAudio library not available at runtime
+
   pa_mainloop *ml = NULL;
   pa_context *context = NULL;
   char *server = NULL;
