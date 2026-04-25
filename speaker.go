@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// Speaker plays a WAV file through the default output device
-// This is a Go port of the RtAudio playraw.cpp example
-func Speaker(wavFilePath string) error {
+// Speaker plays a WAV file through the named output device.
+// If deviceName is empty, the system default output device is used.
+func Speaker(wavFilePath string, deviceName string) error {
 	// Open the WAV file
 	file, err := os.Open(wavFilePath)
 	if err != nil {
@@ -50,6 +50,19 @@ func Speaker(wavFilePath string) error {
 		return fmt.Errorf("no audio devices found")
 	}
 
+	// Resolve device ID: use the named device if provided, fall back to default.
+	deviceID := audio.DefaultOutputDeviceId()
+	outputDev := audio.DefaultOutputDevice()
+	if deviceName != "" {
+		for _, d := range devices {
+			if d.Name == deviceName {
+				outputDev = d
+				deviceID = d.ID
+				break
+			}
+		}
+	}
+
 	// Calculate total frames
 	bytesPerSample := bitsPerSample / 8
 	totalFrames := dataSize / (channels * bytesPerSample)
@@ -62,57 +75,58 @@ func Speaker(wavFilePath string) error {
 		totalFrames:  totalFrames,
 	}
 
+
 	// Set up stream parameters for output
 	bufferFrames := uint(512)
 	params := StreamParams{
-		DeviceID:     uint(audio.DefaultOutputDeviceId()),
-		NumChannels:  uint(channels),
+		DeviceID:     uint(deviceID),
+		NumChannels:  uint(outputDev.NumOutputChannels),
 		FirstChannel: 0,
 	}
 
 	// Output callback function
-	cb := func(out, in Buffer, dur time.Duration, status StreamStatus) int {
-		// Get output buffer as int16 slice
-		outputData := out.Int16()
-		if outputData == nil {
-			return 0
-		}
+  cb := func(out, in Buffer, dur time.Duration, status StreamStatus) int {
+      outputData := out.Int16()
+      if outputData == nil {
+          return 0
+      }
 
-		nFrames := out.Len()
+      nFrames := out.Len()
+      outChannels := int(params.NumChannels)
 
-		// Read data from file
-		// Note: We read interleaved samples (channels * frames)
-		samplesToRead := nFrames * data.channels
-		buffer := make([]int16, samplesToRead)
+      samplesToRead := nFrames * data.channels
+      buffer := make([]int16, samplesToRead)
 
-		// Read binary data from file
-		err := binary.Read(data.file, binary.LittleEndian, buffer)
-		if err != nil {
-			if errors.Is(err, os.ErrClosed) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				// End of file - fill with silence and stop
-				for i := range outputData {
-					outputData[i] = 0
-				}
-				return 1
-			}
-			// Other error - fill with silence and stop
-			for i := range outputData {
-				outputData[i] = 0
-			}
-			return 1
-		}
+      err := binary.Read(data.file, binary.LittleEndian, buffer)
+      if err != nil {
+          if errors.Is(err, os.ErrClosed) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+              clear(outputData)
+              return 1
+          }
+          clear(outputData)
+          return 1
+      }
 
-		// Copy data to output buffer
-		copy(outputData, buffer)
-		data.frameCounter += nFrames
+      // Expand channels: e.g. mono -> stereo, or pass through if counts match
+      if data.channels == outChannels {
+          copy(outputData, buffer)
+      } else {
+          for f := 0; f < nFrames; f++ {
+              for ch := 0; ch < outChannels; ch++ {
+                  srcCh := ch % data.channels  // cycles mono across all output channels
+                  outputData[f*outChannels+ch] = buffer[f*data.channels+srcCh]
+              }
+          }
+      }
 
-		// Check for output underflow
-		if status&StatusOutputUnderflow != 0 {
-			fmt.Println("\nWARNING: Output underflow detected!")
-		}
+      data.frameCounter += nFrames
 
-		return 0
-	}
+      if status&StatusOutputUnderflow != 0 {
+          fmt.Println("\nWARNING: Output underflow detected!")
+      }
+
+      return 0
+  }
 
 	err = audio.Open(&params, nil, FormatInt16, uint(sampleRate), bufferFrames, cb, nil)
 	if err != nil {
