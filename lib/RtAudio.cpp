@@ -469,14 +469,14 @@ extern "C" const RtAudio::Api rtaudio_compiled_apis[] = {
 #if defined(__MACOSX_CORE__)
   RtAudio::MACOSX_CORE,
 #endif
-#if defined(__LINUX_ALSA__)
-  RtAudio::LINUX_ALSA,
-#endif
 #if defined(__UNIX_JACK__)
   RtAudio::UNIX_JACK,
 #endif
 #if defined(__LINUX_PULSE__)
   RtAudio::LINUX_PULSE,
+#endif
+#if defined(__LINUX_ALSA__)
+  RtAudio::LINUX_ALSA,
 #endif
 #if defined(__LINUX_OSS__)
   RtAudio::LINUX_OSS,
@@ -2584,10 +2584,10 @@ static void jackSilentError( const char * ) {};
 
 RtApiJack :: RtApiJack()
     :shouldAutoconnect_(true) {
-  // Nothing to do here.
 #if !defined(__RTAUDIO_DEBUG__)
-  // Turn off Jack's internal error reporting.
-  jack_set_error_function( &jackSilentError );
+  // Turn off Jack's internal error reporting (only if library loaded).
+  if ( rtaudio_jack_load() )
+    jack_set_error_function( &jackSilentError );
 #endif
 }
 
