@@ -115,23 +115,23 @@ static bool _jack_load_syms(void* handle) {
 static bool rtaudio_jack_load() {
   if (_jack_lib_handle) return true;
 
-  fprintf(stderr, "[jack_loader] rtaudio_jack_load() called\n");
+  // fprintf(stderr, "[jack_loader] rtaudio_jack_load() called\n");
 
   for (int i = 0; _jack_candidate_paths[i]; ++i) {
-    fprintf(stderr, "[jack_loader] trying: %s\n", _jack_candidate_paths[i]);
+    // fprintf(stderr, "[jack_loader] trying: %s\n", _jack_candidate_paths[i]);
     void* handle = dlopen(_jack_candidate_paths[i], RTLD_LAZY | RTLD_LOCAL);
     if (!handle) {
       fprintf(stderr, "[jack_loader]   dlopen failed: %s\n", dlerror());
       continue;
     }
-    fprintf(stderr, "[jack_loader]   dlopen OK\n");
+    // fprintf(stderr, "[jack_loader]   dlopen OK\n");
 
     if (!_jack_load_syms(handle)) {
       fprintf(stderr, "[jack_loader]   symbol load failed\n");
       dlclose(handle);
       continue;
     }
-    fprintf(stderr, "[jack_loader]   symbols OK, probing server\n");
+    // fprintf(stderr, "[jack_loader]   symbols OK, probing server\n");
 
     // Verify a server is actually reachable before committing to this library.
     // Use JackNoStartServer so we don't accidentally launch a daemon.
@@ -145,14 +145,14 @@ static bool rtaudio_jack_load() {
       dlclose(handle);
       continue;
     }
-    fprintf(stderr, "[jack_loader]   probe OK — using this library\n");
+    // fprintf(stderr, "[jack_loader]   probe OK — using this library\n");
     _jack_client_close(probe);
 
     _jack_lib_handle = handle;
     return true;
   }
 
-  fprintf(stderr, "[jack_loader] no working JACK library found\n");
+  // fprintf(stderr, "[jack_loader] no working JACK library found\n");
   return false;
 }
 
